@@ -1,5 +1,5 @@
 import os
-os.environ["STREAMLIT_WATCHDOG_IGNORE"] = "true"  # Fix inotify error
+os.environ["STREAMLIT_WATCHDOG_IGNORE"] = "true"  # Prevent inotify errors
 
 import streamlit as st
 from transformers import Blip2Processor, Blip2ForConditionalGeneration, pipeline
@@ -43,9 +43,9 @@ def load_translation_models():
     return models
 
 # ----------------------
-# Caption + Translate
+# Functions
 # ----------------------
-def generate_caption_translate(image, target_lang):
+def generate_caption_translate(image, target_lang, caption_processor, caption_model, translation_models):
     inputs = caption_processor(image, return_tensors="pt")
     out = caption_model.generate(**inputs, max_new_tokens=50)
     english_caption = caption_processor.decode(out[0], skip_special_tokens=True)
@@ -57,10 +57,7 @@ def generate_caption_translate(image, target_lang):
 
     return english_caption, translated
 
-# ----------------------
-# VQA
-# ----------------------
-def vqa(image, question):
+def vqa(image, question, vqa_processor, vqa_model):
     inputs = vqa_processor(image, question, return_tensors="pt").to(vqa_model.device)
     out = vqa_model.generate(**inputs, max_new_tokens=100)
     answer = vqa_processor.decode(out[0], skip_special_tokens=True)
@@ -76,12 +73,15 @@ with tab1:
     img = st.file_uploader("Upload Image", type=["png", "jpg", "jpeg"])
     lang = st.selectbox("Translate To", ["Hindi", "French", "Spanish"])
     if st.button("Generate Caption & Translate") and img is not None:
-        # Lazy-load caption model
+        # Lazy-load caption model and translation pipelines
         caption_processor, caption_model = load_caption_model()
         translation_models = load_translation_models()
 
         image = Image.open(img).convert("RGB")
-        eng_caption, trans_caption = generate_caption_translate(image, lang)
+        eng_caption, trans_caption = generate_caption_translate(
+            image, lang, caption_processor, caption_model, translation_models
+        )
+
         st.image(image, caption="Uploaded Image", use_column_width=True)
         st.text_area("English Caption", eng_caption)
         st.text_area(f"Translated Caption ({lang})", trans_caption)
@@ -95,6 +95,7 @@ with tab2:
         vqa_processor, vqa_model = load_vqa_model()
 
         image = Image.open(img_vqa).convert("RGB")
-        answer = vqa(image, question)
+        answer = vqa(image, question, vqa_processor, vqa_model)
+
         st.image(image, caption="Uploaded Image", use_column_width=True)
         st.text_area("Answer", answer)

@@ -1,8 +1,7 @@
-import gradio as gr
+import streamlit as st
 from transformers import Blip2Processor, Blip2ForConditionalGeneration, pipeline
 from PIL import Image
 import torch
-import streamlit as st
 
 # ----------------------
 # Cached Model Loaders
@@ -30,7 +29,7 @@ def load_translation_models():
     }
 
 # ----------------------
-# Load All Models with Spinner
+# Load Models with Spinner
 # ----------------------
 with st.spinner("Loading BLIP2 models... please wait ⏳"):
     caption_processor, caption_model = load_caption_model()
@@ -64,26 +63,28 @@ def vqa(image, question):
     return answer
 
 # ----------------------
-# Gradio UI
+# Streamlit UI
 # ----------------------
-with gr.Blocks(title="BLIP2 Vision App") as demo:
-    gr.Markdown("## 🖼️ BLIP2: Image Captioning + Translation + Question Answering")
+st.title("🖼️ BLIP2 Vision App")
+tab1, tab2 = st.tabs(["Caption + Translate", "Visual Question Answering (VQA)"])
 
-    with gr.Tab("Caption + Translate"):
-        with gr.Row():
-            img_in = gr.Image(type="pil", label="Upload Image")
-            lang_in = gr.Dropdown(["Hindi", "French", "Spanish"], label="Translate To")
-        eng_out = gr.Textbox(label="English Caption")
-        trans_out = gr.Textbox(label="Translated Caption")
-        btn1 = gr.Button("Generate Caption & Translate")
-        btn1.click(generate_caption_translate, inputs=[img_in, lang_in], outputs=[eng_out, trans_out])
+with tab1:
+    st.header("Caption + Translate")
+    img = st.file_uploader("Upload Image", type=["png", "jpg", "jpeg"])
+    lang = st.selectbox("Translate To", ["Hindi", "French", "Spanish"])
+    if st.button("Generate Caption & Translate") and img is not None:
+        image = Image.open(img).convert("RGB")
+        eng_caption, trans_caption = generate_caption_translate(image, lang)
+        st.image(image, caption="Uploaded Image", use_column_width=True)
+        st.text_area("English Caption", eng_caption)
+        st.text_area(f"Translated Caption ({lang})", trans_caption)
 
-    with gr.Tab("Visual Question Answering (VQA)"):
-        with gr.Row():
-            img_vqa = gr.Image(type="pil", label="Upload Image")
-            q_in = gr.Textbox(label="Ask a Question about the Image")
-        ans_out = gr.Textbox(label="Answer")
-        btn2 = gr.Button("Ask")
-        btn2.click(vqa, inputs=[img_vqa, q_in], outputs=ans_out)
-
-demo.launch()
+with tab2:
+    st.header("Visual Question Answering (VQA)")
+    img_vqa = st.file_uploader("Upload Image for VQA", type=["png", "jpg", "jpeg"], key="vqa_img")
+    question = st.text_input("Ask a Question about the Image")
+    if st.button("Ask") and img_vqa is not None and question:
+        image = Image.open(img_vqa).convert("RGB")
+        answer = vqa(image, question)
+        st.image(image, caption="Uploaded Image", use_column_width=True)
+        st.text_area("Answer", answer)

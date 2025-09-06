@@ -87,7 +87,7 @@ from transformers import Blip2Processor, Blip2ForConditionalGeneration
 from PIL import Image
 
 # ----------------------
-# Load BLIP2 Model
+# Load BLIP2 Model (cached)
 # ----------------------
 @st.cache_resource
 def load_model():
@@ -99,8 +99,7 @@ def load_model():
     )
     return processor, model
 
-st.title("🖼️ BLIP2: Image Captioning & VQA")
-st.write("Upload an image and either generate a caption or ask a question about it.")
+st.title("🖼️ BLIP2: Image Captioning")
 
 processor, model = load_model()
 
@@ -109,27 +108,18 @@ processor, model = load_model()
 # ----------------------
 uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
 
-if uploaded_file is not None:
+if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
     st.image(image, caption="Uploaded Image", use_column_width=True)
 
-    # ---- Caption Button ----
     if st.button("Generate Caption"):
-        with st.spinner("🧠 Generating caption..."):
+        with st.spinner("🧠 Generating caption... please wait (can take ~1–2 min on CPU)"):
             inputs = processor(images=image, return_tensors="pt").to(model.device)
             with torch.no_grad():
-                output = model.generate(**inputs, max_new_tokens=50)
-            caption = processor.decode(output[0], skip_special_tokens=True)
-        st.success(f"**Caption:** {caption}")
+                output_ids = model.generate(**inputs, max_new_tokens=50)
+            caption = processor.decode(output_ids[0], skip_special_tokens=True)
 
-    # ---- VQA Section ----
-    st.subheader("Ask a Question about the Image")
-    question = st.text_input("Type your question here:")
-    if st.button("Get Answer") and question:
-        with st.spinner("🤔 Thinking..."):
-            inputs = processor(images=image, text=question, return_tensors="pt").to(model.device)
-            with torch.no_grad():
-                output = model.generate(**inputs, max_new_tokens=50)
-            answer = processor.decode(output[0], skip_special_tokens=True)
-        st.success(f"**Answer:** {answer}")
-
+        if caption.strip():
+            st.success(f"**Caption:** {caption}")
+        else:
+            st.error("⚠️ Caption generation returned empty. Try again.")

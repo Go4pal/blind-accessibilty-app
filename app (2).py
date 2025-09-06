@@ -1,3 +1,5 @@
+import os
+os.environ["STREAMLIT_WATCHDOG_IGNORE"] = "true" 
 import streamlit as st
 from transformers import Blip2Processor, Blip2ForConditionalGeneration, pipeline
 from PIL import Image

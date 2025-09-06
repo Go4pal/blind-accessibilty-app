@@ -87,19 +87,19 @@ from transformers import Blip2Processor, Blip2ForConditionalGeneration
 from PIL import Image
 
 # ----------------------
-# Load BLIP2 Model (cached)
+# Load Smaller BLIP2 Model (cached)
 # ----------------------
 @st.cache_resource
 def load_model():
-    processor = Blip2Processor.from_pretrained("Salesforce/blip2-opt-2.7b")
+    processor = Blip2Processor.from_pretrained("Salesforce/blip2-opt-350m")
     model = Blip2ForConditionalGeneration.from_pretrained(
-        "Salesforce/blip2-opt-2.7b",
+        "Salesforce/blip2-opt-350m",
         torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
         device_map="auto"
     )
     return processor, model
 
-st.title("🖼️ BLIP2: Image Captioning")
+st.title("🖼️ BLIP2: Fast Image Captioning")
 
 processor, model = load_model()
 
@@ -113,7 +113,7 @@ if uploaded_file:
     st.image(image, caption="Uploaded Image", use_column_width=True)
 
     if st.button("Generate Caption"):
-        with st.spinner("🧠 Generating caption... please wait (can take ~1–2 min on CPU)"):
+        with st.spinner("⚡ Generating caption..."):
             inputs = processor(images=image, return_tensors="pt").to(model.device)
             with torch.no_grad():
                 output_ids = model.generate(**inputs, max_new_tokens=50)
@@ -122,4 +122,4 @@ if uploaded_file:
         if caption.strip():
             st.success(f"**Caption:** {caption}")
         else:
-            st.error("⚠️ Caption generation returned empty. Try again.")
+            st.error("⚠️ No caption generated. Try another image.")

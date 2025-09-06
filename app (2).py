@@ -1,98 +1,43 @@
-# app.py
-# import gradio as gr
-# from transformers import BlipProcessor, BlipForConditionalGeneration
-# from gtts import gTTS
-# import io
-# from PIL import Image
-
-# # -------------------------------
-# # Load BLIP-base model (lighter version)
-# # -------------------------------
-# processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-large")
-# model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-large")
-
-# # -------------------------------
-# # Generate caption function
-# # -------------------------------
-# # def generate_caption_tts(image):
-# #     caption = generate_caption(model, processor, image)
-# #     audio_file = text_to_audio_file(caption)
-# #     return caption, audio_file  # return file path, not BytesIO
-
-
-# # -------------------------------
-# # Convert text to speech using gTTS
-# # -------------------------------
-# import tempfile
-# import pyttsx3
-
-# def text_to_audio_file(text):
-#     # Create a temporary file
-#     tmp_file = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
-#     tmp_path = tmp_file.name
-#     tmp_file.close()
-
-#     engine = pyttsx3.init()
-#     engine.save_to_file(text, tmp_path)
-#     engine.runAndWait()
-
-#     return tmp_path
-
-# def generate_caption_from_image(model, processor, image):
-#     # image: PIL.Image
-#     inputs = processor(images=image, return_tensors="pt")
-#     out = model.generate(**inputs)
-#     caption = processor.decode(out[0], skip_special_tokens=True)
-#     return caption
-# # -------------------------------
-# # Gradio interface: Caption + Audio
-# # -------------------------------
-# def generate_caption_tts(image):
-#     caption = generate_caption_from_image(model, processor, image)  # uses global model/processor
-#     # audio_file = text_to_audio_file(caption)
-#     return caption 
-
-
-
-# interface = gr.Interface(
-#     fn=generate_caption_tts,
-#     inputs=gr.Image(type="numpy"),
-#     outputs=[gr.Textbox(label="Generated Caption")],
-#     title="Image Captioning for Visually Impaired",
-#     description="Upload an image, get a caption and audio description."
-# )
-
-
-# interface.launch()
-# # demo.launch(share=True)
-
 import gradio as gr
 from transformers import Blip2Processor, Blip2ForConditionalGeneration, pipeline
 from PIL import Image
 import torch
+import streamlit as st
 
 # ----------------------
-# Load BLIP2 for Captioning
+# Cached Model Loaders
 # ----------------------
-caption_processor = Blip2Processor.from_pretrained("Salesforce/blip2-opt-2.7b")
-caption_model = Blip2ForConditionalGeneration.from_pretrained("Salesforce/blip2-opt-2.7b")
+@st.cache_resource
+def load_caption_model():
+    processor = Blip2Processor.from_pretrained("Salesforce/blip2-opt-2.7b")
+    model = Blip2ForConditionalGeneration.from_pretrained("Salesforce/blip2-opt-2.7b")
+    return processor, model
+
+@st.cache_resource
+def load_vqa_model():
+    processor = Blip2Processor.from_pretrained("Salesforce/blip2-flan-t5-xl")
+    model = Blip2ForConditionalGeneration.from_pretrained(
+        "Salesforce/blip2-flan-t5-xl", torch_dtype=torch.float16, device_map="auto"
+    )
+    return processor, model
+
+@st.cache_resource
+def load_translation_models():
+    return {
+        "Hindi": pipeline("translation", model="Helsinki-NLP/opus-mt-en-hi"),
+        "French": pipeline("translation", model="Helsinki-NLP/opus-mt-en-fr"),
+        "Spanish": pipeline("translation", model="Helsinki-NLP/opus-mt-en-es"),
+    }
 
 # ----------------------
-# Load BLIP2 for VQA
+# Load All Models with Spinner
 # ----------------------
-vqa_processor = Blip2Processor.from_pretrained("Salesforce/blip2-flan-t5-xl")
-vqa_model = Blip2ForConditionalGeneration.from_pretrained(
-    "Salesforce/blip2-flan-t5-xl", torch_dtype=torch.float16, device_map="auto"
-)
+with st.spinner("Loading BLIP2 models... please wait ⏳"):
+    caption_processor, caption_model = load_caption_model()
+    vqa_processor, vqa_model = load_vqa_model()
+    translation_models = load_translation_models()
 
-# ----------------------
-# Translation pipelines
-# ----------------------
-translation_models = {
-    "Hindi": pipeline("translation", model="Helsinki-NLP/opus-mt-en-hi"),
-    "French": pipeline("translation", model="Helsinki-NLP/opus-mt-en-fr"),
-    "Spanish": pipeline("translation", model="Helsinki-NLP/opus-mt-en-es"),
-}
+st.success("✅ Models are ready!")
 
 # ----------------------
 # Caption + Translate Function
@@ -102,7 +47,6 @@ def generate_caption_translate(image, target_lang):
     out = caption_model.generate(**inputs, max_new_tokens=50)
     english_caption = caption_processor.decode(out[0], skip_special_tokens=True)
 
-    # Translate if chosen
     if target_lang in translation_models:
         translated = translation_models[target_lang](english_caption)[0]['translation_text']
     else:
@@ -142,10 +86,4 @@ with gr.Blocks(title="BLIP2 Vision App") as demo:
         btn2 = gr.Button("Ask")
         btn2.click(vqa, inputs=[img_vqa, q_in], outputs=ans_out)
 
-demo.launch(share="true")
-
-
-
-
-
- 
+demo.launch()

@@ -1,0 +1,8 @@
+transformers
+gradio
+pyttsx3
+Pillow
+torch
+gtts
+sentencepiece
+accelerate
